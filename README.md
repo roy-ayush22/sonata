@@ -1,30 +1,60 @@
 # Sonata
 
-Sonata is an offline-first Linux music player prototype built with Flutter and a small Rust library indexer. Its visual direction follows the provided desktop reference: cool lavender library surfaces, warm translucent playback panel, pastel accents, and lyrics beside the cover.
+Sonata is a Linux-first, offline music player based on the desktop Flutter and Rust application from [Mornye](https://github.com/mornyeapp/Mornye). Its desktop shell opens to the local library, with Mornye's sidebar, floating player, lyrics and Up Next inspector, full-screen player, keyboard shortcuts, metadata editor, playlists, and folder watching.
 
-## Current app
+Song discovery and download destinations are removed from Sonata's desktop navigation and player. Local playback, library scanning, tag editing, and local `.lrc` lyrics work offline. Configured lyrics providers can use the network when you choose to fetch lyrics.
 
-- Browse a seeded demo album, search and sort the library, open the Up Next pane, and edit track details in the current session.
-- Add a local folder. The Rust core scans common audio extensions; if its shared library is not available, Flutter's local filesystem scan is used. Added folders are rescanned every 15 seconds while the app is open.
-- Play local files through `just_audio`, seek, change volume, and use Space to play/pause, Ctrl/⌘ + Left/Right to skip, and Ctrl/⌘ + Up/Down to adjust volume.
-- The demo album and lyric lines are illustrative UI content. Lyrics, provider ordering, persistent tag writing, playlists, and duplicate matching still need their data and storage implementations.
+## Linux requirements
 
-## Build on Linux
+- Flutter 3.47.x and Dart 3.10 or newer
+- Rust toolchain pinned by `rust_backend/rust-toolchain.toml` (Rust 1.99.0)
+- Clang/libclang, CMake, Ninja, GTK 3, ALSA, libmpv, GStreamer, and libsecret development packages
 
-Install the Flutter stable SDK and Linux desktop prerequisites from the official Flutter Linux setup guide. Then, from this directory:
+On Ubuntu or Linux Mint:
+
+```sh
+sudo apt update
+sudo apt install build-essential clang cmake ninja-build pkg-config zip \
+  libgtk-3-dev liblzma-dev libsecret-1-dev libstdc++-12-dev \
+  libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  libasound2-dev libclang-dev libmpv-dev
+```
+
+The first build downloads Flutter and Rust dependencies. After dependencies are cached, local playback does not need internet access.
+
+## Run Sonata from source
+
+Run these commands from the project root:
 
 ```sh
 flutter pub get
-cargo build --release -p sonata_core
-CXX=/usr/bin/g++ flutter run -d linux
+bash scripts/build_rust_backend.sh desktop
+flutter run -d linux
 ```
 
-Playback uses `just_audio_media_kit` with the Linux native media libraries; the app limits allowed playback sources to local files.
+The repository pins Flutter 3.47.7 in `.fvmrc`; Flutter 3.47.8 should also satisfy the Dart SDK constraint. Rustup reads the pinned Rust version when the backend build script enters `rust_backend/`.
 
-The Rust shared library is searched for as `libsonata_core.so`, `./libsonata_core.so`, `target/release/libsonata_core.so`, and `rust_core/target/release/libsonata_core.so`. Cargo's default workspace output is `target/release/libsonata_core.so`.
+## Build a Linux release
 
-Flutter 3.47.8 is installed on the machine. This build sandbox cannot resolve `pub.dev`, so Flutter dependencies cannot be fetched here; run `flutter pub get` from a network-enabled terminal. `clang++` is not installed in the current environment, but `/usr/bin/g++` is available and can be selected with `CXX=/usr/bin/g++` for the Linux build. GTK 3 development headers, CMake, and Ninja are also required.
+```sh
+bash scripts/build_rust_backend.sh desktop
+flutter build linux --release
+```
 
-## Rust C ABI
+Flutter writes the application bundle under `build/linux/`. To package it as a Debian package, run:
 
-`sonata_scan_json(folder, output, capacity)` writes a JSON array of audio file paths and filename-based titles into a caller-owned buffer. This keeps ownership straightforward across the Dart FFI boundary and keeps the indexer dependency-free.
+```sh
+bash scripts/package_linux.sh deb build/linux/x64/release/bundle 0.1.0 /tmp/sonata.deb
+```
+
+## Use the library and player
+
+- Add a music folder from the Library. Sonata watches it for new and changed tracks while the app is open.
+- Select a local track to play it. Space toggles playback; Ctrl/Cmd + Left/Right skips, and Ctrl/Cmd + Up/Down adjusts volume.
+- Use the player controls to open Lyrics or Up Next beside the current library page. Full-screen player mode presents the artwork beside lyrics.
+- Add same-name `.lrc` files beside tracks for local lyrics. Timed lines, translation, and romanization are shown when available in the file or an enabled lyrics source.
+- Edit tags, review duplicate tracks, search and sort the library, and manage local playlists from the Library sidebar.
+
+## License and attribution
+
+Sonata adapts Mornye. The upstream `LICENSE`, `COPYING`, `NOTICE`, and bundled third-party license notices are retained; review those files before redistributing builds. Mornye is licensed under LGPL-3.0-only with the incorporated GPL-3.0 terms.

@@ -1,4 +1,3 @@
-# Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
 project(runner LANGUAGES CXX)
 
@@ -7,7 +6,7 @@ project(runner LANGUAGES CXX)
 set(BINARY_NAME "sonata")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "dev.sonata.sonata")
+set(APPLICATION_ID "dev.sonata.musicplayer")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -26,7 +25,6 @@ if(FLUTTER_TARGET_PLATFORM_SYSROOT)
   set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 endif()
 
-# Define build configuration options.
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Debug" CACHE
     STRING "Flutter build mode" FORCE)
@@ -50,11 +48,9 @@ endfunction()
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
-# System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
-# Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
 # Run the Flutter tool portions of the build. This must not be removed.
@@ -70,8 +66,6 @@ set_target_properties(${BINARY_NAME}
 )
 
 
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
 include(flutter/generated_plugins.cmake)
 
 
@@ -97,6 +91,11 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
+# Window icon loaded by my_application.cc. Packaging adds the desktop entry.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/brand/logo/png/mornye-badge@1x.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "mornye.png"
+  COMPONENT Runtime)
+
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
@@ -106,7 +105,44 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# Copy the native assets provided by the build.dart from all packages.
+# Rust desktop backend, loaded by dart:ffi from the bundle's lib/ directory.
+# It is prebuilt by `bash scripts/build_rust_backend.sh desktop`.
+set(MORNYE_DESKTOP_LIBRARY
+  "${CMAKE_CURRENT_SOURCE_DIR}/../rust_backend/target/desktop/linux/libmornye_desktop.so")
+if(NOT EXISTS "${MORNYE_DESKTOP_LIBRARY}")
+  message(FATAL_ERROR
+    "The Rust desktop backend was not built: ${MORNYE_DESKTOP_LIBRARY} "
+    "is missing. Run `bash scripts/build_rust_backend.sh desktop` from the "
+    "repository root, then build again.")
+endif()
+install(FILES "${MORNYE_DESKTOP_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+# LGPL ffmpeg and ffprobe, found by lib/services/ffmpeg_desktop.dart in the
+# bundle's lib/ffmpeg/ directory. They are staged by
+# `bash scripts/fetch_desktop_ffmpeg.sh linux-<arch>`; without them the app
+# falls back to an ffmpeg on PATH, so a missing stage is only a warning.
+if(DEFINED FLUTTER_TARGET_PLATFORM)
+  set(MORNYE_FFMPEG_TARGET "${FLUTTER_TARGET_PLATFORM}")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(MORNYE_FFMPEG_TARGET "linux-arm64")
+else()
+  set(MORNYE_FFMPEG_TARGET "linux-x64")
+endif()
+set(MORNYE_FFMPEG_DIR
+  "${CMAKE_CURRENT_SOURCE_DIR}/../build/ffmpeg/${MORNYE_FFMPEG_TARGET}")
+if(EXISTS "${MORNYE_FFMPEG_DIR}/ffmpeg" AND EXISTS "${MORNYE_FFMPEG_DIR}/ffprobe")
+  install(PROGRAMS "${MORNYE_FFMPEG_DIR}/ffmpeg" "${MORNYE_FFMPEG_DIR}/ffprobe"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/ffmpeg" COMPONENT Runtime)
+  install(FILES "${MORNYE_FFMPEG_DIR}/LICENSE.txt" "${MORNYE_FFMPEG_DIR}/SOURCE.txt"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/ffmpeg" COMPONENT Runtime)
+else()
+  message(WARNING
+    "No LGPL FFmpeg is staged in ${MORNYE_FFMPEG_DIR}; the bundle will use "
+    "ffmpeg from PATH. Run `bash scripts/fetch_desktop_ffmpeg.sh "
+    "${MORNYE_FFMPEG_TARGET}` from the repository root to bundle it.")
+endif()
+
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
@@ -121,7 +157,6 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# Install the AOT library on non-Debug builds only.
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)

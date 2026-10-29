@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.4
+Name=Sonata
+GenericName=Music Player
+Comment=Play and organize your local music library
+Exec=sonata %U
+Icon=dev.sonata.musicplayer
+Terminal=false
+StartupNotify=true
+StartupWMClass=dev.sonata.musicplayer
+Categories=AudioVideo;Audio;Player;Music;
+Keywords=music;player;audio;flac;library;
+MimeType=x-scheme-handler/mornye;
