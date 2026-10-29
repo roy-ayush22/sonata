@@ -3,7 +3,6 @@ import 'package:mornye/widgets/app_icon.dart';
 import 'package:mornye/widgets/app_switch.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mornye/l10n/l10n.dart';
-import 'package:mornye/providers/extension_provider.dart';
 import 'package:mornye/providers/settings_provider.dart';
 import 'package:mornye/utils/adaptive_layout.dart';
 import 'package:mornye/widgets/discard_changes_dialog.dart';
@@ -47,8 +46,10 @@ class _LyricsProviderPriorityPageState
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
-    _enabledProviders = List.from(settings.lyricsProviders);
-    _initialProviders = List.from(settings.lyricsProviders);
+    _enabledProviders = settings.lyricsProviders
+        .where(_builtInProviderIds.contains)
+        .toList();
+    _initialProviders = List.from(_enabledProviders);
   }
 
   void _markChanged() {
@@ -64,17 +65,7 @@ class _LyricsProviderPriorityPageState
 
   @override
   Widget build(BuildContext context) {
-    final extensions = ref.watch(extensionProvider).extensions;
-    final extensionNames = <String, String>{
-      for (final extension in extensions)
-        if (extension.enabled && extension.hasLyricsProvider)
-          'extension:${extension.id.toLowerCase()}': extension.displayName,
-    };
-    final allProviderIds = <String>[
-      ..._builtInProviderIds,
-      ...extensionNames.keys.where((id) => !_builtInProviderIds.contains(id)),
-    ];
-    final disabled = allProviderIds
+    final disabled = _builtInProviderIds
         .where((id) => !_enabledProviders.contains(id))
         .toList();
 
@@ -106,11 +97,7 @@ class _LyricsProviderPriorityPageState
               itemCount: _enabledProviders.length,
               itemBuilder: (context, index) {
                 final id = _enabledProviders[index];
-                final info = _getLyricsProviderInfo(
-                  id,
-                  context,
-                  extensionNames[id],
-                );
+                final info = _getLyricsProviderInfo(id, context);
                 return ReorderablePriorityItem(
                   key: ValueKey(id),
                   index: index,
@@ -151,11 +138,7 @@ class _LyricsProviderPriorityPageState
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final id = disabled[index];
-                final info = _getLyricsProviderInfo(
-                  id,
-                  context,
-                  extensionNames[id],
-                );
+                final info = _getLyricsProviderInfo(id, context);
                 return _DisabledProviderItem(
                   key: ValueKey(id),
                   providerId: id,
@@ -202,7 +185,6 @@ class _LyricsProviderPriorityPageState
   static _LyricsProviderInfo _getLyricsProviderInfo(
     String id,
     BuildContext context,
-    String? extensionDisplayName,
   ) {
     switch (id) {
       case 'lrclib':
@@ -291,13 +273,9 @@ class _LyricsProviderPriorityPageState
         );
       default:
         return _LyricsProviderInfo(
-          name:
-              extensionDisplayName ??
-              (id.startsWith('extension:')
-                  ? id.substring('extension:'.length)
-                  : id),
+          name: id,
           description: context.l10n.lyricsProviderExtensionDesc,
-          icon: Icons.extension,
+          icon: Icons.lyrics_outlined,
         );
     }
   }

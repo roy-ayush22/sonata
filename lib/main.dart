@@ -13,13 +13,11 @@ import 'package:mornye/app.dart';
 import 'package:mornye/constants/app_info.dart';
 import 'package:mornye/models/library_database_models.dart';
 import 'package:mornye/models/settings.dart';
-import 'package:mornye/providers/download_queue_provider.dart';
 import 'package:mornye/providers/extension_provider.dart';
 import 'package:mornye/providers/local_library_provider.dart';
 import 'package:mornye/providers/runtime_profile_provider.dart';
 import 'package:mornye/providers/settings_provider.dart';
 import 'package:mornye/providers/theme_provider.dart';
-import 'package:mornye/services/notification_service.dart';
 import 'package:mornye/services/platform_bridge.dart';
 import 'package:mornye/services/share_intent_service.dart';
 import 'package:mornye/services/cover_cache_manager.dart';
@@ -37,7 +35,6 @@ import 'package:mornye/screens/now_playing_screen.dart';
 import 'package:mornye/utils/desktop_platform.dart';
 import 'package:mornye/utils/local_library_scan_prefs.dart';
 import 'package:mornye/utils/logger.dart';
-import 'package:mornye/utils/extension_auth_launcher.dart';
 import 'package:mornye/widgets/desktop/desktop_inspector.dart'
     show bindDesktopFullScreenLyrics;
 import 'package:mornye/widgets/desktop/desktop_window.dart'
@@ -425,12 +422,9 @@ class EagerInitialization extends ConsumerStatefulWidget {
 class _EagerInitializationState extends ConsumerState<EagerInitialization>
     with WidgetsBindingObserver {
   ProviderSubscription<bool>? _localLibraryEnabledSub;
-  Timer? _downloadHistoryWarmupTimer;
   Timer? _localLibraryWarmupTimer;
   bool _localLibraryWarmupScheduled = false;
   bool _autoScanTriggeredOnLaunch = false;
-  StreamSubscription<void>? _verificationNotificationSubscription;
-  StreamSubscription<void>? _extensionAuthCallbackSubscription;
   DesktopDeepLinks? _desktopDeepLinks;
   DesktopLibraryWatcher? _desktopLibraryWatcher;
   ProviderSubscription<bool>? _desktopLibraryWatchSub;
@@ -442,14 +436,6 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _verificationNotificationSubscription =
-          PlatformBridge.verificationNotificationEvents().listen(
-            (_) => unawaited(_consumeVerificationNotification()),
-          );
-      _extensionAuthCallbackSubscription =
-          PlatformBridge.extensionAuthCallbackEvents().listen(
-            (_) => unawaited(_completeExtensionCallback()),
-          );
       // After the callback subscription, so a launch URL is not missed.
       if (isDesktopPlatform) {
         _desktopDeepLinks = DesktopDeepLinks()..start();
@@ -467,29 +453,17 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
     WidgetsBinding.instance.removeObserver(this);
     CoverCacheManager.stopMaintenance();
     _localLibraryEnabledSub?.close();
-    _downloadHistoryWarmupTimer?.cancel();
     _localLibraryWarmupTimer?.cancel();
-    _verificationNotificationSubscription?.cancel();
-    _extensionAuthCallbackSubscription?.cancel();
     unawaited(_desktopDeepLinks?.dispose());
     _desktopLibraryWatchSub?.close();
     _stopDesktopLibraryWatcher();
-    NotificationService().verificationNotifications.setHandler(null);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_consumeVerificationNotification());
       CoverCacheManager.scheduleMaintenance();
-      // Native downloads can finish while Flutter is suspended. Refresh the
-      // persisted history even when no queued item remains to reconcile.
-      if (ref.exists(downloadHistoryProvider)) {
-        unawaited(
-          ref.read(downloadHistoryProvider.notifier).reloadFromStorage(),
-        );
-      }
       _maybeAutoScanLocalLibrary();
       if (ref.exists(localLibraryProvider)) {
         unawaited(
@@ -498,25 +472,8 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
               .refreshSourceAvailability(scanReconnected: true),
         );
       }
-      if (!isDesktopPlatform && ref.exists(downloadQueueProvider)) {
-        ref
-            .read(downloadQueueProvider.notifier)
-            .resumePendingDownloadsOnForeground();
-      }
     } else if (state == AppLifecycleState.paused) {
       CoverCacheManager.stopMaintenance();
-      // Last reliable moment before the OS may kill the process: make sure
-      // any debounced download-queue persistence reaches disk.
-      if (ref.exists(downloadQueueProvider)) {
-        unawaited(
-          ref
-              .read(downloadQueueProvider.notifier)
-              .flushQueuePersistence()
-              .catchError((Object error) {
-                _log.e('Failed to flush background download queue: $error');
-              }),
-        );
-      }
       // Backgrounded: release idle native runtimes and connections.
       unawaited(PlatformBridge.releaseNativeMemory());
     }
@@ -536,10 +493,6 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
   }
 
   void _initializeDeferredProviders() {
-    _downloadHistoryWarmupTimer = _scheduleProviderWarmup(
-      const Duration(milliseconds: 400),
-      () => ref.read(downloadHistoryProvider),
-    );
     _maybeScheduleLocalLibraryWarmup(
       ref.read(
         settingsProvider.select((settings) => settings.localLibraryEnabled),
@@ -671,10 +624,7 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
     try {
       await CoverCacheManager.initialize();
       CoverCacheManager.scheduleMaintenance();
-      await Future.wait([
-        NotificationService().initialize(),
-        ShareIntentService().initialize(),
-      ]);
+      await Future.wait([ShareIntentService().initialize()]);
     } catch (e) {
       debugPrint('Failed to initialize app services: $e');
     }
@@ -687,44 +637,8 @@ class _EagerInitializationState extends ConsumerState<EagerInitialization>
         ref.read(extensionProvider),
         ref.read(settingsProvider),
       );
-      if (!mounted) return;
-      NotificationService().verificationNotifications.setHandler((
-        target,
-      ) async {
-        if (!mounted) return;
-        try {
-          await ref
-              .read(downloadQueueProvider.notifier)
-              .handleVerificationNotificationTap(target);
-        } catch (error) {
-          _log.w('Could not open verification notification: $error');
-          if (mounted) showExtensionVerificationUnavailable(target.extensionId);
-        }
-      });
-      await _consumeVerificationNotification();
     } catch (e) {
       debugPrint('Failed to initialize extensions: $e');
-    }
-  }
-
-  Future<void> _consumeVerificationNotification() async {
-    if (!mounted || !Platform.isAndroid) return;
-    try {
-      final payload = await PlatformBridge.consumeVerificationNotification();
-      if (mounted) {
-        NotificationService().verificationNotifications.receive(payload);
-      }
-    } catch (error) {
-      _log.w('Could not read pending verification notification: $error');
-    }
-  }
-
-  Future<void> _completeExtensionCallback() async {
-    try {
-      await ref.read(extensionProvider.notifier).ensureInitialized();
-      await PlatformBridge.processPendingExtensionCallbacks();
-    } catch (error) {
-      _log.w('Could not complete extension verification: $error');
     }
   }
 

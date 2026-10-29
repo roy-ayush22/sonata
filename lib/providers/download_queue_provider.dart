@@ -203,6 +203,14 @@ class DownloadQueueNotifier extends Notifier<DownloadQueueState> {
 
   @override
   DownloadQueueState build() {
+    // Sonata's desktop build is a local playback app. Do not restore or
+    // resume Mornye's download queue when a desktop library screen happens to
+    // observe the shared library provider.
+    if (isDesktopPlatform) {
+      _queueRestored.complete();
+      return const DownloadQueueState();
+    }
+
     ref.onDispose(
       SourceDeletionEvents.instance.subscribe((source) async {
         _removeDeletedFile(source);

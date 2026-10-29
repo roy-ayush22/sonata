@@ -4,7 +4,6 @@ import 'package:mornye/l10n/l10n.dart';
 import 'package:mornye/providers/settings_provider.dart';
 import 'package:mornye/utils/artist_utils.dart';
 import 'package:mornye/utils/nav_bar_inset.dart';
-import 'package:mornye/screens/settings/metadata_provider_priority_page.dart';
 import 'package:mornye/screens/settings/metadata_separator_settings_page.dart';
 import 'package:mornye/widgets/settings_group.dart';
 import 'package:mornye/widgets/app_icon.dart';
@@ -26,7 +25,9 @@ class MetadataSettingsPage extends ConsumerWidget {
             AppSliverHeader.page(title: context.l10n.settingsMetadata),
 
             SliverToBoxAdapter(
-              child: SettingsSectionHeader(title: context.l10n.sectionDownload),
+              child: SettingsSectionHeader(
+                title: context.l10n.settingsMetadata,
+              ),
             ),
             SliverToBoxAdapter(
               child: SettingsGroup(
@@ -91,67 +92,6 @@ class MetadataSettingsPage extends ConsumerWidget {
                       showDivider: false,
                     ),
                   ],
-                ],
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: SettingsSectionHeader(
-                title: context.l10n.sectionMetadataProviders,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SettingsGroup(
-                children: [
-                  SettingsItem(
-                    icon: Icons.source_outlined,
-                    title: context.l10n.metadataProvidersTitle,
-                    subtitle: context.l10n.metadataProvidersSubtitle,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const MetadataProviderPriorityPage(),
-                      ),
-                    ),
-                    showDivider: false,
-                  ),
-                ],
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: SettingsSectionHeader(
-                title: context.l10n.sectionDuplicates,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SettingsGroup(
-                children: [
-                  SettingsSwitchItem(
-                    icon: Icons.filter_list_outlined,
-                    title: context.l10n.downloadDeduplication,
-                    subtitle: settings.deduplicateDownloads
-                        ? settings.allowQualityVariants
-                              ? context
-                                    .l10n
-                                    .downloadDeduplicationWithQualityVariants
-                              : context.l10n.downloadDeduplicationEnabled
-                        : context.l10n.downloadDeduplicationDisabled,
-                    value: settings.deduplicateDownloads,
-                    onChanged: (value) => ref
-                        .read(settingsProvider.notifier)
-                        .setDeduplicateDownloads(value),
-                  ),
-                  SettingsSwitchItem(
-                    icon: Icons.library_music_outlined,
-                    title: context.l10n.downloadQualityVariants,
-                    subtitle: context.l10n.downloadQualityVariantsDescription,
-                    value: settings.allowQualityVariants,
-                    onChanged: (value) => ref
-                        .read(settingsProvider.notifier)
-                        .setAllowQualityVariants(value),
-                    showDivider: false,
-                  ),
                 ],
               ),
             ),

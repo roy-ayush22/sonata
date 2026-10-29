@@ -16,14 +16,6 @@ const builtInLyricsProviderNames = <String, String>{
   'betterlyrics': 'BetterLyrics',
 };
 
-/// A lyrics provider's name for display. [extensionNames] maps
-/// `extension:<id>` to the installed extension's display name.
-String lyricsProviderDisplayName(
-  String provider,
-  Map<String, String> extensionNames,
-) =>
-    builtInLyricsProviderNames[provider] ??
-    extensionNames[provider] ??
-    (provider.startsWith('extension:')
-        ? provider.substring('extension:'.length)
-        : provider);
+/// A built-in lyrics provider's name for display.
+String lyricsProviderDisplayName(String provider) =>
+    builtInLyricsProviderNames[provider] ?? provider;

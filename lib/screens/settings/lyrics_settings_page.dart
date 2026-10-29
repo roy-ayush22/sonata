@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mornye/l10n/l10n.dart';
-import 'package:mornye/providers/extension_provider.dart';
 import 'package:mornye/providers/settings_provider.dart';
 import 'package:mornye/screens/settings/lyrics_provider_priority_page.dart';
 import 'package:mornye/widgets/settings_group.dart';
@@ -21,10 +20,6 @@ class LyricsSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final extensionProviderNames = <String, String>{
-      for (final extension in ref.watch(extensionProvider).extensions)
-        'extension:${extension.id.toLowerCase()}': extension.displayName,
-    };
 
     return PopScope(
       canPop: true,
@@ -83,7 +78,6 @@ class LyricsSettingsPage extends ConsumerWidget {
                       subtitle: _getLyricsProvidersSubtitle(
                         context,
                         settings.lyricsProviders,
-                        extensionProviderNames,
                       ),
                       onTap: () => Navigator.push(
                         context,
@@ -199,15 +193,9 @@ class LyricsSettingsPage extends ConsumerWidget {
   String _getLyricsProvidersSubtitle(
     BuildContext context,
     List<String> providers,
-    Map<String, String> extensionProviderNames,
   ) {
     if (providers.isEmpty) return context.l10n.downloadProvidersNoneEnabled;
-    return providers
-        .map(
-          (provider) =>
-              lyricsProviderDisplayName(provider, extensionProviderNames),
-        )
-        .join(' > ');
+    return providers.map(lyricsProviderDisplayName).join(' > ');
   }
 
   void _showLyricsModePicker(

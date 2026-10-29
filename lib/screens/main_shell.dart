@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mornye/l10n/l10n.dart';
 import 'package:mornye/services/saf_migration_prompt_store.dart';
-import 'package:mornye/providers/download_queue_provider.dart';
 import 'package:mornye/providers/music_player_provider.dart';
 import 'package:mornye/providers/settings_provider.dart';
 import 'package:mornye/providers/playback_notification_provider.dart';
@@ -36,7 +35,6 @@ import 'package:mornye/services/app_remote_config_service.dart';
 import 'package:mornye/services/update_checker.dart';
 import 'package:mornye/widgets/app_announcement_dialog.dart';
 import 'package:mornye/widgets/app_snack_bar.dart';
-import 'package:mornye/widgets/download_queue_feedback.dart';
 import 'package:mornye/widgets/update_dialog.dart';
 import 'package:mornye/widgets/animation_utils.dart';
 import 'package:mornye/widgets/nav_destination_icons.dart';
@@ -402,8 +400,7 @@ class _MainShellState extends ConsumerState<MainShell>
       context.isMornye ? (showStore ? 4 : 3) : (showStore ? 3 : 2);
 
   void _onShellTabRequested(ShellTab tab) {
-    if (isDesktopPlatform &&
-        (tab == ShellTab.home || tab == ShellTab.search)) {
+    if (isDesktopPlatform && (tab == ShellTab.home || tab == ShellTab.search)) {
       return;
     }
     // Picking a destination returns from Now Playing to the content pane.
@@ -600,7 +597,6 @@ class _MainShellState extends ConsumerState<MainShell>
 
   List<DesktopDestination> _desktopDestinations({
     required bool showStore,
-    required int queueCount,
     required int repoUpdatesCount,
   }) {
     final l10n = context.l10n;
@@ -623,7 +619,6 @@ class _MainShellState extends ConsumerState<MainShell>
                 ? CupertinoIcons.square_stack_fill
                 : Icons.library_music,
             label: l10n.navLibrary,
-            badgeCount: queueCount,
           ),
           ShellTab.repository => DesktopDestination(
             tab: tab,
@@ -707,9 +702,6 @@ class _MainShellState extends ConsumerState<MainShell>
         ),
       ),
       'songs' => const Scaffold(body: QueueTab(librarySection: 'all')),
-      'downloads' => const Scaffold(
-        body: QueueTab(librarySection: 'downloads'),
-      ),
       DesktopSidebarLink.allPlaylistsId => const Scaffold(
         body: QueueTab(librarySection: 'playlists'),
       ),
@@ -803,9 +795,6 @@ class _MainShellState extends ConsumerState<MainShell>
       settingsProvider.select((s) => s.listeningStatisticsEnabled),
       (_, enabled) => listeningRecorder.setEnabled(enabled),
     );
-    final queueState = ref.watch(
-      downloadQueueProvider.select((s) => s.queuedCount),
-    );
     final showStore = _showExtensionStore(ref);
     final heroAnimationsEnabled = ref.watch(
       settingsProvider.select((s) => s.heroAnimationsEnabled),
@@ -872,28 +861,17 @@ class _MainShellState extends ConsumerState<MainShell>
       ),
       NavigationDestination(
         icon: context.isMornye
-            ? MornyeNavigationIcon(
+            ? const MornyeNavigationIcon(
                 icon: CupertinoIcons.square_stack_fill,
-                badgeCount: queueState,
+                badgeCount: 0,
               )
-            : AnimatedBadge(
-                count: queueState,
-                child: Badge(
-                  isLabelVisible: queueState > 0,
-                  label: Text('$queueState'),
-                  child: const AppIcon(Icons.library_music_outlined),
-                ),
-              ),
-        selectedIcon: SlidingIcon(
-          child: AnimatedBadge(
-            count: queueState,
-            child: Badge(
-              isLabelVisible: queueState > 0,
-              label: Text('$queueState'),
-              child: const AppIcon(Icons.library_music),
-            ),
-          ),
-        ),
+            : const AppIcon(Icons.library_music_outlined),
+        selectedIcon: context.isMornye
+            ? const MornyeNavigationIcon(
+                icon: CupertinoIcons.square_stack_fill,
+                badgeCount: 0,
+              )
+            : const AppIcon(Icons.library_music),
         label: l10n.navLibrary,
       ),
       if (showStore)
@@ -1022,24 +1000,18 @@ class _MainShellState extends ConsumerState<MainShell>
       final selectedTab = _tabForIndex(selectedDestination, showStore);
       final destinations = _desktopDestinations(
         showStore: showStore,
-        // Mornye shows the queue on its Downloads link instead.
-        queueCount: mornye ? 0 : queueState,
         repoUpdatesCount: repoUpdatesCount,
       );
-      return DownloadQueueFeedback(
-        child: Scaffold(
-          body: DesktopShellLayout(
-            destinations: destinations,
-            selected: selectedTab,
-            onSelected: _onShellTabRequested,
-            libraryLinks: mornye
-                ? _desktopLibraryLinks()
-                : const [],
-            onOpenLibraryLink: mornye ? _openDesktopLibraryLink : null,
-            onOpenProfile: mornye ? _openDesktopProfile : null,
-            // The selection bar floats over the pages, not the sidebar.
-            body: SelectionOverlayHost(child: pageView),
-          ),
+      return Scaffold(
+        body: DesktopShellLayout(
+          destinations: destinations,
+          selected: selectedTab,
+          onSelected: _onShellTabRequested,
+          libraryLinks: mornye ? _desktopLibraryLinks() : const [],
+          onOpenLibraryLink: mornye ? _openDesktopLibraryLink : null,
+          onOpenProfile: mornye ? _openDesktopProfile : null,
+          // The selection bar floats over the pages, not the sidebar.
+          body: SelectionOverlayHost(child: pageView),
         ),
       );
     }
@@ -1186,7 +1158,7 @@ class _MainShellState extends ConsumerState<MainShell>
         ),
       ),
     );
-    return DownloadQueueFeedback(child: shell);
+    return shell;
   }
 }
 

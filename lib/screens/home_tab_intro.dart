@@ -717,15 +717,6 @@ class _HomeShortcuts extends ConsumerWidget {
         onBadge: colorScheme.onSecondaryContainer,
         onTap: () => open(const ListeningStatisticsScreen()),
       ),
-      _HomeShortcutTile(
-        label: l10n.networkStorage,
-        icon: Icons.lan_outlined,
-        container: colorScheme.surfaceContainerHigh,
-        onContainer: colorScheme.onSurface,
-        badge: colorScheme.secondaryContainer,
-        onBadge: colorScheme.onSecondaryContainer,
-        onTap: () => open(const NetworkStorageScreen()),
-      ),
     ];
 
     return Column(
@@ -738,8 +729,11 @@ class _HomeShortcuts extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: tiles[row]),
-                const SizedBox(width: 8),
-                Expanded(child: tiles[row + 1]),
+                if (row + 1 < tiles.length) ...[
+                  const SizedBox(width: 8),
+                  Expanded(child: tiles[row + 1]),
+                ] else
+                  const Expanded(child: SizedBox.shrink()),
               ],
             ),
           ),

@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mornye/l10n/l10n.dart';
-import 'package:mornye/providers/extension_provider.dart';
 import 'package:mornye/services/platform_bridge.dart';
 import 'package:mornye/utils/lyrics_provider_names.dart';
 import 'package:mornye/widgets/app_bottom_sheet.dart';
@@ -88,7 +86,11 @@ Future<String?> showLyricsProviderPicker(
     ].where((value) => value.trim().isNotEmpty).join(' · '),
     maxHeightFactor: 0.82,
     builder: (_) => LyricsProviderPicker(
-      loadProviders: loadProviders ?? PlatformBridge.getEnabledLyricsProviders,
+      loadProviders:
+          loadProviders ??
+          () async => (await PlatformBridge.getEnabledLyricsProviders())
+              .where(builtInLyricsProviderNames.containsKey)
+              .toList(),
       fetch:
           fetch ??
           (provider) => PlatformBridge.getLyricsFromProvider(
@@ -104,7 +106,7 @@ Future<String?> showLyricsProviderPicker(
 
 /// Lists each enabled provider in priority order, filling in its result as
 /// it arrives. Tapping a result closes the sheet with its lyrics.
-class LyricsProviderPicker extends ConsumerStatefulWidget {
+class LyricsProviderPicker extends StatefulWidget {
   final LyricsProviderLoader loadProviders;
   final LyricsProviderFetcher fetch;
 
@@ -115,11 +117,10 @@ class LyricsProviderPicker extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<LyricsProviderPicker> createState() =>
-      _LyricsProviderPickerState();
+  State<LyricsProviderPicker> createState() => _LyricsProviderPickerState();
 }
 
-class _LyricsProviderPickerState extends ConsumerState<LyricsProviderPicker> {
+class _LyricsProviderPickerState extends State<LyricsProviderPicker> {
   /// Searches at once; the rest wait their turn so a long provider list
   /// does not occupy every native worker.
   static const _concurrency = 4;
@@ -198,10 +199,6 @@ class _LyricsProviderPickerState extends ConsumerState<LyricsProviderPicker> {
         ),
       );
     }
-    final extensionNames = <String, String>{
-      for (final extension in ref.watch(extensionProvider).extensions)
-        'extension:${extension.id.toLowerCase()}': extension.displayName,
-    };
     final previewStyle = Theme.of(
       context,
     ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant);
@@ -215,7 +212,6 @@ class _LyricsProviderPickerState extends ConsumerState<LyricsProviderPicker> {
               _tile(
                 providers[index],
                 _results[providers[index]],
-                extensionNames: extensionNames,
                 previewStyle: previewStyle,
                 last: index == providers.length - 1,
               ),
@@ -228,7 +224,6 @@ class _LyricsProviderPickerState extends ConsumerState<LyricsProviderPicker> {
   Widget _tile(
     String provider,
     LyricsProviderResult? result, {
-    required Map<String, String> extensionNames,
     required TextStyle? previewStyle,
     required bool last,
   }) {
@@ -237,7 +232,7 @@ class _LyricsProviderPickerState extends ConsumerState<LyricsProviderPicker> {
         : lyricsPreviewLines(result.lyrics);
     final item = SettingsItem(
       key: ValueKey('lyrics-provider-$provider'),
-      title: lyricsProviderDisplayName(provider, extensionNames),
+      title: lyricsProviderDisplayName(provider),
       subtitle: result == null ? null : _status(context, result),
       footer: preview.isEmpty
           ? null
