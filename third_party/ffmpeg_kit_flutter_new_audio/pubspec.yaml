@@ -1,5 +1,5 @@
 name: ffmpeg_kit_flutter_new_audio
-description: FFmpeg Kit Audio for Flutter. Supports Android, iOS, macOS and Windows platforms.
+description: FFmpeg Kit Audio for Flutter on Linux.
 repository: https://github.com/sk3llo/ffmpeg_kit_flutter/tree/audio
 homepage: https://github.com/sk3llo/ffmpeg_kit_flutter
 version: 2.5.7
@@ -10,15 +10,6 @@ environment:
 flutter:
   plugin:
     platforms:
-      android:
-        package: com.antonkarpenko.ffmpegkit
-        pluginClass: FFmpegKitFlutterPlugin
-      ios:
-        pluginClass: FFmpegKitFlutterPlugin
-      macos:
-        pluginClass: FFmpegKitFlutterPlugin
-      windows:
-        pluginClass: FFmpegKitFlutterPlugin
       linux:
         pluginClass: FFmpegKitFlutterPlugin
 
